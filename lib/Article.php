@@ -13,6 +13,7 @@ class Article{
     CONST ERROR_NONE_TABLE = '数据表不存在';
     CONST ERROR_PARAM = '参数错误';
     CONST ERROR_QUERY_FAILED = '操作失败';
+    CONST ERROR_NO_DATA = '数据不存在';
     /*CONST SUCCESS_MSG_GET = '获取成功';
     CONST SUCCESS_CODE_GET = 200;
     CONST SUCCESS_MSG_CREATE = '添加成功';
@@ -65,49 +66,57 @@ class Article{
         //数据库连接已建立
         $tableName = self::tableName();
         $querySql = "select * from $tableName where 1=1";
+        $bindArr = [];
         if (isset($queryParam['id']) && !empty($queryParam['id'])) {
             $querySql .= " and id = :id";
+            $bindArr[":id"] = intval($queryParam['id']);
         }
         if (isset($queryParam['title']) && !empty($queryParam['title'])) {
             $querySql .= " and title like '%:title%'";
+            $bindArr[":title"] = trim($queryParam['title']);
         }
         if (isset($queryParam['author']) && !empty($queryParam['author'])) {
             $querySql .= " and author like '%:author%'";
+            $bindArr[":author"] = trim($queryParam['author']);
         }
         if (isset($queryParam['cate_id']) && !empty($queryParam['cate_id'])) {
             $querySql .= " and cate_id = :cateId";
+            $bindArr[":cateId"] = intval($queryParam['cate_id']);
         }
         if (isset($queryParam['is_valid']) && !empty($queryParam['is_valid'])) {
             $querySql .= " and is_valid = :isValid";
+            $bindArr[":isValid"] = intval($queryParam['is_valid']);
         }
 
         $preSql = $this->_db->prepare($querySql);
-        $preSql->bindParam(":id", $articleId);
-        $preSql->bindParam(":title", $title);
-        $preSql->bindParam(":author", $author);
-        $preSql->bindParam(":cate_id", $cateId);
-        $preSql->bindParam(":is_valid", $isValid);
+
         $articleId = isset($queryParam['id']) ? intval($queryParam['id']) : 0;
-        $title = isset($queryParam['title']) ? trim($queryParam['title']) : '';
+        /*$title = isset($queryParam['title']) ? trim($queryParam['title']) : '';
         $author = isset($queryParam['author']) ? trim($queryParam['author']) : '';
         $cateId = isset($queryParam['cate_id']) ? intval($queryParam['cate_id']) : 0;
-        $isValid = isset($queryParam['is_valid']) ? intval($queryParam['is_valid']) : 1;
-        $preSql->execute();
+        $isValid = isset($queryParam['is_valid']) ? intval($queryParam['is_valid']) : 1;*/
+        $preSql->execute($bindArr);
         $preSql->setFetchMode(PDO::FETCH_ASSOC);
         $res = $preSql->fetchAll();
 
-        $retData = [];
-        //判断是否指定文章id，未指定返回全部，否则返回指定数据
-        if (isset($queryParam['id']) && $articleId > 0) {
-            $retData = !empty($res) && !empty($res[0]) ? $res[0] : [];
-        } else if (isset($queryParam['id']) && $articleId <= 0){
+        if (count($res) > 0) {
+            $retData = [];
+            //判断是否指定文章id，未指定返回全部，否则返回指定数据
+            if (isset($queryParam['id']) && $articleId > 0) {
+                $retData = !empty($res) && !empty($res[0]) ? $res[0] : [];
+            } else if (isset($queryParam['id']) && $articleId <= 0){
 
+            } else {
+                $retData = $res;
+            }
+            self::$RESP_INFO['code'] = SUCCESS_CODE_GET;
+            self::$RESP_INFO['msg'] = SUCCESS_MSG_GET;
+            self::$RESP_INFO['data'] = $retData;
         } else {
-            $retData = $res;
+            self::$RESP_INFO['code'] = COMMON_ERROR_CODE;
+            self::$RESP_INFO['msg'] = self::ERROR_NO_DATA;
         }
-        self::$RESP_INFO['code'] = SUCCESS_CODE_GET;
-        self::$RESP_INFO['msg'] = SUCCESS_MSG_GET;
-        self::$RESP_INFO['data'] = $retData;
+
         return $this->afterAction();
     }
 

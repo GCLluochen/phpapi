@@ -165,70 +165,61 @@ class Restful{
         $serverPar = $_SERVER;
 
         //获取除host外的链接 ** http://learngit.me/api/index.php/articles?name=donghan
-        $requestURI = trim($serverPar['REQUEST_URI']);
+        $requestURI = trim($serverPar['DOCUMENT_URI']);//host之后不含querystring的 字符串,如"/api/index.php/articles"
+
         // 以 '/' 分隔该链接，得到请求的资源名称及参数
         $routeArr = explode('/', $requestURI);
-        $uriArr = array_pop($routeArr);
+        $resourceName = array_pop($routeArr);//需要操作的资源名称，复数形式
 
-        if (trim($uriArr) == 'index.php') {
+        if (trim($resourceName) == 'index.php') {
             throw new Exception('请指定所请求的接口', COMMON_ERROR_CODE);
+        } else {
+            //判断资源名称是否包含 's'
+            if (false !== stripos($resourceName, 's')) {
+                //首先移除资源名称右侧的复数 s,然后首字符转为大写
+                $this->_resourceName = ucFirst(rtrim($resourceName, 's'));
+            } else {
+                //将首字符转为大写
+                $this->_resourceName = ucFirst($resourceName);
+            }
         }
+
         $reqData = [];//请求参数
         switch($this->_requestMethod){
             case METHOD_GET:
                 /**
                  * 查询操作
                  */
-                $nameQuery = [];
-                if (false !== stripos($uriArr, '?')) {
-                    //请求链接中包含参数，根据参数查找资源
-                    $nameQuery = explode('?', $uriArr);
-                    if (false !== stripos($nameQuery[0], 's')) {
-                        //首先移除资源名称右侧的复数 s,然后首字符转为大写
-                        $this->_resourceName = ucFirst(rtrim($nameQuery[0], 's'));
-                    } else {
-                        //将首字符转为大写
-                        $this->_resourceName = ucFirst($nameQuery[0]);
-                    }
-                } else {
-                    //不包含参数，获取当前所需资源全部数据
-                    if (false !== stripos($uriArr, 's')) {
-                        //首先移除资源名称右侧的复数 s,然后首字符转为大写
-                        $this->_resourceName = ucFirst(rtrim($uriArr, 's'));
-                    }
-                }
                 //设置需要调用的资源操作方法
                 $this->_actionName = $this->methodAction[METHOD_GET] . $this->_resourceName;
 
-                //需要传递给操作方法的查询参数 数组
+                $queryString = trim($_SERVER['QUERY_STRING']);
+                //需要传递给操作方法的查询参数 array
                 //查询字符串中的键值对数组
                 $queryParam = [];
-                if (!empty($nameQuery) && false !== stripos($nameQuery[1], '&')) {
-                    $queryParam = explode('&', $nameQuery[1]);
-                } else if (!empty($nameQuery) && false === stripos($nameQuery[1], '&')){
-                    $queryParam[] = $nameQuery[1];
+                if (!empty($queryString) && count($queryString) > 0) {
+                    //请求链接中包含参数，根据参数查找资源
+                    $queryParam = explode('&', $queryString);
                 }
-                //将查询参数依次放入数组中
+
+                //将查询字符串依次放入参数数组中
                 foreach($queryParam as $v){
                     list($queryKey, $queryVal) = explode('=', $v);
                     $reqData[$queryKey] = $queryVal;
                 }
                 break;
             case METHOD_POST:
+                /**
+                 * 添加操作
+                 */
+                //设置需要调用的资源操作方法
+                $this->_actionName = $this->methodAction[METHOD_POST] . $this->_resourceName;
                 //获取参数
                 //$postData = isset($_POST["data_info"]) ? json_decode($_POST["data_info"], true) : [];
                 $rawData = json_decode(file_get_contents("php://input"), true);
                 $reqData = isset($rawData["data_info"]) ? $rawData["data_info"] : [];
 
-                if (false === stripos($uriArr, '?')) {
-                    //不包含参数，获取当前所需资源全部数据
-                    if (false !== stripos($uriArr, 's')) {
-                        //首先移除资源名称右侧的复数 s,然后首字符转为大写
-                        $this->_resourceName = ucFirst(rtrim($uriArr, 's'));
-                    }
-                    //设置需要调用的资源操作方法
-                    $this->_actionName = $this->methodAction[METHOD_POST] . $this->_resourceName;
-                } else {
+                if (!preg_match("/[a-zA-z]+/", $resourceName)) {
                     throw new Exception('接口地址错误', COMMON_ERROR_CODE);
                     //$respData = json_encode(['code' => COMMON_ERROR_CODE,'msg' => '接口地址错误'], JSON_UNESCAPED_UNICODE);
                 }
@@ -237,28 +228,27 @@ class Restful{
                 /**
                  * 修改操作
                  */
+                //设置需要调用的资源操作方法
+                $this->_actionName = $this->methodAction[METHOD_PUT] . $this->_resourceName;
 
                 //获取修改 参数
 
                 //$postData = isset($_POST["data_info"]) ? json_decode($_POST["data_info"], true) : [];
                 $rawData = json_decode(file_get_contents("php://input"), true);
                 $reqData = isset($rawData["data_info"]) ? $rawData["data_info"] : [];
-                if (false === stripos($uriArr, '?')) {
-                    //不包含参数，获取当前所需资源全部数据
-                    if (false !== stripos($uriArr, 's')) {
-                        //首先移除资源名称右侧的复数 s,然后首字符转为大写
-                        $this->_resourceName = ucFirst(rtrim($uriArr, 's'));
-                    }
-                    //设置需要调用的资源操作方法
-                    $this->_actionName = $this->methodAction[METHOD_PUT] . $this->_resourceName;
-                } else {
+
+                if (!preg_match("/[a-zA-z_-]+/", $resourceName)) {
                     throw new Exception('接口地址错误', COMMON_ERROR_CODE);
+                    //$respData = json_encode(['code' => COMMON_ERROR_CODE,'msg' => '接口地址错误'], JSON_UNESCAPED_UNICODE);
                 }
                 break;
             case METHOD_DELETE:
                 /**
                  * 删除操作
                  */
+                //设置需要调用的资源操作方法
+                $this->_actionName = $this->methodAction[METHOD_DELETE] . $this->_resourceName;
+
                 /**
                  * 暂时无法通过非url部分获取DELETE请求体， 因此将请求参数放于url中
                  */
@@ -267,43 +257,25 @@ class Restful{
                 /*$rawData = json_decode(file_get_contents("php://input"), true);
                 $postData = isset($rawData["data_info"]) ? $rawData["data_info"] : [];*/
 
-                if (false !== stripos($uriArr, '?')) {
-                    //请求链接中包含参数，解析参数
-                    $nameQuery = explode('?', $uriArr);
-                    if (false !== stripos($nameQuery[0], 's')) {
-                        //首先移除资源名称右侧的复数 s,然后首字符转为大写
-                        $this->_resourceName = ucFirst(rtrim($nameQuery[0], 's'));
-                    } else {
-                        //将首字符转为大写
-                        $this->_resourceName = ucFirst($nameQuery[0]);
-                    }
-
-                    //查询字符串中的键值对数组
-                    $queryParam = [];
-                    if (!empty($nameQuery) && false !== stripos($nameQuery[1], '&')) {
-                        $queryParam = explode('&', $nameQuery[1]);
-                    } else if (empty($nameQuery)){
-                        throw new Exception('缺少参数', COMMON_ERROR_CODE);
-                    } else {
-                        $queryParam[] = $nameQuery[1];
-                    }
-                    //将查询参数依次放入数组中
-                    foreach($queryParam as $v){
-                        list($queryKey, $queryVal) = explode('=', $v);
-                        $reqData[$queryKey] = $queryVal;
-                    }
-                } else {
-                    // TODO
-                    //请求url中不含？  以 url/参数名/参数值形式传递
-                    //请求URL 为 http://api路径/参数名/参数值格式(仅支持单个参数)
-                    //不包含参数，获取当前所需资源全部数据
-                    if (false !== stripos($uriArr, 's')) {
-                        //首先移除资源名称右侧的复数 s,然后首字符转为大写
-                        $this->_resourceName = ucFirst(rtrim($uriArr, 's'));
-                    }
+                if (!preg_match("/[a-zA-z]+/", $resourceName)) {
+                    throw new Exception('接口地址错误', COMMON_ERROR_CODE);
+                    //$respData = json_encode(['code' => COMMON_ERROR_CODE,'msg' => '接口地址错误'], JSON_UNESCAPED_UNICODE);
                 }
-                //设置需要调用的资源操作方法
-                $this->_actionName = $this->methodAction[METHOD_DELETE] . $this->_resourceName;
+
+                $queryString = trim($_SERVER['QUERY_STRING']);
+                //需要传递给操作方法的查询参数 array
+                //查询字符串中的键值对数组
+                $queryParam = [];
+                if (!empty($queryString) && count($queryString) > 0) {
+                    //请求链接中包含参数，根据参数查找资源
+                    $queryParam = explode('&', $queryString);
+                }
+
+                //将查询字符串依次放入参数数组中
+                foreach($queryParam as $v){
+                    list($queryKey, $queryVal) = explode('=', $v);
+                    $reqData[$queryKey] = $queryVal;
+                }
                 break;
         }
         return $reqData;
